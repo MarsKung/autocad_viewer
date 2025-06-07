@@ -1,0 +1,16 @@
+body, html {
+    margin: 0; padding: 0; width: 100%; height: 100%; font-family: sans-serif;
+}
+.app-container { display: flex; width: 100%; height: 100%; }
+.sidebar { width: 300px; padding: 15px; border-right: 1px solid #ccc; overflow-y: auto; box-sizing: border-box; }
+.viewer-container { flex-grow: 1; height: 100%; }
+#autocadViewer { width: 100%; height: 100%; }
+.upload-section, .model-list-section { margin-bottom: 20px; }
+h3 { margin-top: 0; }
+input[type="file"] { margin-bottom: 10px; width: 100%; }
+button { width: 100%; padding: 8px; cursor: pointer; }
+#model-list { list-style: none; padding: 0; }
+#model-list li { padding: 10px; border: 1px solid #ddd; margin-bottom: 5px; cursor: pointer; border-radius: 4px; }
+#model-list li:hover { background-color: #f0f0f0; }
+#model-list li.active { background-color: #d0e0ff; font-weight: bold; }
+#upload-status { margin-top: 10px; font-size: 0.9em; }

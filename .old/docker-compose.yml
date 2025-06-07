@@ -1,0 +1,19 @@
+# 使用 Docker Compose 的檔案格式版本
+version: '3.8'
+
+# 定義所有服務
+services:
+  # 為我們的服務取個名字
+  autocad_viewer:
+    # 指定容器的名稱
+    container_name: autocad_viewer_container
+    # 指示從當前目錄的 Dockerfile 來建立映像檔
+    build: .
+    # 埠號映射 (將主機的 80 埠映射到容器的 8000 埠)
+    ports:
+      - "80:8000"
+    # 載入 .env 檔案中的所有環境變數
+    env_file:
+      - .env
+    # 讓容器在伺服器重開機或意外關閉後自動重啟
+    restart: always

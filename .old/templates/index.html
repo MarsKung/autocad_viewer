@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>APS 模型瀏覽與上傳</title>
+    <link rel="stylesheet" href="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/style.min.css">
+    <style>
+        body, html { font-family: sans-serif; height: 100vh; margin: 0; }
+        .app-container { display: flex; width: 100%; height: 100%; }
+        .sidebar { width: 350px; border-right: 1px solid #ccc; padding: 10px; display: flex; flex-direction: column; box-sizing: border-box; }
+        .navigation-pane { flex-grow: 1; overflow-y: auto; }
+        .upload-pane { padding: 10px; border-top: 1px solid #ccc; flex-shrink: 0; }
+        .main-content { flex-grow: 1; position: relative; }
+        #viewerDiv { width: 100%; height: 100%; }
+        h3 { margin-top: 20px; margin-bottom: 5px; }
+        h3:first-child { margin-top: 0; }
+        ul { list-style: none; padding-left: 15px; margin-top: 5px; }
+        li { padding: 8px; cursor: pointer; border-radius: 4px; margin-bottom: 2px; }
+        li:hover { background-color: #f0f0f0; }
+        li.active { background-color: #d0e0ff; font-weight: bold; }
+        #upload-form { display: none; }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="navigation-pane">
+            <h3>使用者資訊</h3>
+            <div id="user-profile">正在載入...</div>
+            <a href="/logout">登出</a>
+            <hr>
+            <h3>1. 中心 (Hubs)</h3>
+            <ul id="hubs-list"></ul>
+            <h3>2. 專案 (Projects)</h3>
+            <ul id="projects-list"></ul>
+            <h3>3. 資料夾 (Folders)</h3>
+            <ul id="folders-list"></ul>
+            <h3>4. 檔案 (Items)</h3>
+            <ul id="items-list"></ul>
+        </div>
+        <div class="upload-pane">
+            <h3>上傳新檔案</h3>
+            <form id="upload-form">
+                <p>將上傳至：<b id="upload-target-folder"></b></p>
+                <input type="file" id="modelFile" name="modelFile" required>
+                <button type="submit">開始上傳</button>
+            </form>
+            <div id="upload-status">請先在上方選擇一個資料夾</div>
+        </div>
+    </aside>
+    <main class="main-content">
+        <div id="viewerDiv"></div>
+    </main>
+    <script src="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
