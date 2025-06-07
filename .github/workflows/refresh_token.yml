@@ -1,0 +1,55 @@
+name: Generate and Deploy Viewer
+
+on:
+  schedule:
+    # 在每小時的第 55 分鐘執行
+    - cron: '55 * * * *'
+  
+  # 允許手動觸發，方便測試
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 步驟 1: 下載儲存庫的程式碼 (不變)
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 步驟 2: 設定 Python 環境 (不變)
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      # 步驟 3: 安裝依賴 (不變)
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      # 步驟 4: 執行 Python 腳本來產生 token.json (不變)
+      - name: Generate token file
+        env:
+          APS_CLIENT_ID: ${{ secrets.APS_CLIENT_ID }}
+          APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
+        run: python generate_token.py
+
+      # ===============================================================
+      # vvvvvvvvvvvvvvvvvv 這是本次最關鍵的修改 vvvvvvvvvvvvvvvvvvv
+      # 步驟 5: 使用新的 Action 將 viewer 資料夾部署到 gh-pages 分支
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          # GitHub Actions 會自動產生一個臨時的 GITHUB_TOKEN，我們用它來授權推送
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # 指定要發佈的資料夾
+          publish_dir: ./viewer
+          # 指定要推送到哪個分支，'gh-pages' 是慣例
+          publish_branch: gh-pages
+          # 讓機器人成為 commit 的作者
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          # commit 的訊息
+          commit_message: "Deploy latest token to GitHub Pages"
+      # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      # ===============================================================
