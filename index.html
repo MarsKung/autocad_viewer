@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>APS Viewer on GitHub Pages</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/style.min.css" type="text/css">
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; }
+        #viewerContainer { width: 100%; height: 100%; }
+        #message { position: absolute; top: 10px; left: 10px; padding: 10px; background-color: rgba(0,0,0,0.7); color: white; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div id="viewerContainer"></div>
+    <div id="message">正在載入...</div>
+
+    <script src="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.min.js"></script>
+    <script>
+        // --- 主程式 ---
+        async function main() {
+            const messageDiv = document.getElementById('message');
+            
+            // 從網址列取得 URN, e.g., ?urn=YOUR_URN_HERE
+            const urlParams = new URLSearchParams(window.location.search);
+            const modelUrn = urlParams.get('urn');
+
+            if (!modelUrn) {
+                messageDiv.textContent = "錯誤：請在網址中提供 URN，例如 .../index.html?urn=您的URN";
+                return;
+            }
+
+            try {
+                // 步驟 1: 讀取我們自動產生的 token.json
+                messageDiv.textContent = '正在獲取認證...';
+                const tokenResp = await fetch('./token.json');
+                if (!tokenResp.ok) throw new Error('無法載入 token.json');
+                const tokenData = await tokenResp.json();
+                
+                messageDiv.textContent = '正在初始化 Viewer...';
+
+                // 步驟 2: 使用獲取到的 Token 初始化 Viewer
+                const options = {
+                    env: 'AutodeskProduction',
+                    accessToken: tokenData.access_token
+                };
+
+                Autodesk.Viewing.Initializer(options, () => {
+                    const viewerDiv = document.getElementById('viewerContainer');
+                    const viewer = new Autodesk.Viewing.GuiViewer3D(viewerDiv);
+                    viewer.start();
+                    
+                    // 同時設定 3D 和 2D 的深色主題
+                    viewer.setTheme('dark-theme'); 
+                    viewer.setLightPreset(2);
+                    viewer.setEnvMapBackground(true);
+                    
+                    const onGeometryLoaded = (event) => {
+                        if (viewer.model && viewer.model.is2d()) {
+                            viewer.prefs.set('swapBlackAndWhite', true);
+                        }
+                        viewer.removeEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, onGeometryLoaded);
+                    };
+                    viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, onGeometryLoaded);
+
+                    const documentId = 'urn:' + modelUrn;
+                    Autodesk.Viewing.Document.load(documentId, 
+                        (doc) => {
+                            const viewables3d = doc.getRoot().search({ 'type': 'geometry', 'role': '3d' });
+                            if (viewables3d.length > 0) {
+                                viewer.loadDocumentNode(doc, viewables3d[0]);
+                            } else {
+                                const viewables2d = doc.getRoot().search({ 'type': 'geometry', 'role': '2d' });
+                                if (viewables2d.length > 0) {
+                                    viewer.loadDocumentNode(doc, viewables2d[0]);
+                                } else {
+                                    throw new Error("在此 URN 中找不到任何 2D 或 3D 視圖。");
+                                }
+                            }
+                            messageDiv.style.display = 'none'; // 載入成功後隱藏訊息
+                        }, 
+                        (errorCode) => { throw new Error(`載入模型失敗 - 錯誤碼: ${errorCode}`) }
+                    );
+                });
+            } catch (error) {
+                messageDiv.textContent = `❌ 錯誤: ${error.message}`;
+                console.error(error);
+            }
+        }
+
+        main();
+    </script>
+</body>
+</html>
