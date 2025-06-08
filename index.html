@@ -8,7 +8,7 @@
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; }
         #viewerContainer { width: 100%; height: 100%; }
-        #message { position: absolute; top: 10px; left: 10px; padding: 10px; background-color: rgba(0,0,0,0.7); color: white; border-radius: 5px; }
+        #message { position: absolute; top: 10px; left: 10px; padding: 10px; background-color: rgba(0,0,0,0.8); color: white; border-radius: 5px; z-index: 100; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -17,9 +17,23 @@
 
     <script src="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.min.js"></script>
     <script>
+        // --- 設定區 ---
+        const MAX_RETRIES = 3; // 最多重試 3 次
+        const RETRY_DELAY_SECONDS = 5; // 每次重試前延遲 5 秒
+
         // --- 主程式 ---
         async function main() {
             const messageDiv = document.getElementById('message');
+            
+            // 從 sessionStorage 讀取目前的重試次數
+            let retryCount = parseInt(sessionStorage.getItem('viewerRetryCount') || '0');
+            
+            // 檢查是否已達最大重試次數
+            if (retryCount >= MAX_RETRIES) {
+                messageDiv.textContent = `❌ 錯誤: 模型載入已連續失敗 ${MAX_RETRIES} 次，將不再自動重試。`;
+                sessionStorage.removeItem('viewerRetryCount'); // 清除計數器
+                return;
+            }
             
             // 從網址列取得 URN, e.g., ?urn=YOUR_URN_HERE
             const urlParams = new URLSearchParams(window.location.search);
@@ -31,10 +45,10 @@
             }
 
             try {
-                // 步驟 1: 讀取我們自動產生的 token.json
+                // 步驟 1: 讀取自動產生的 token.json
                 messageDiv.textContent = '正在獲取認證...';
                 const tokenResp = await fetch('./token.json');
-                if (!tokenResp.ok) throw new Error('無法載入 token.json');
+                if (!tokenResp.ok) throw new Error(`無法載入 token.json (狀態: ${tokenResp.status})`);
                 const tokenData = await tokenResp.json();
                 
                 messageDiv.textContent = '正在初始化 Viewer...';
@@ -44,17 +58,18 @@
                     env: 'AutodeskProduction',
                     accessToken: tokenData.access_token
                 };
-
+                
                 Autodesk.Viewing.Initializer(options, () => {
                     const viewerDiv = document.getElementById('viewerContainer');
                     const viewer = new Autodesk.Viewing.GuiViewer3D(viewerDiv);
                     viewer.start();
                     
-                    // 同時設定 3D 和 2D 的深色主題
+                    // 設定深色主題
                     viewer.setTheme('dark-theme'); 
-                    viewer.setLightPreset(2);
+                    viewer.setLightPreset(2); // 3D 環境
                     
-                    const onGeometryLoaded = (event) => {
+                    // 監聽幾何載入事件，來設定 2D 反轉顏色
+                    const onGeometryLoaded = () => {
                         if (viewer.model && viewer.model.is2d()) {
                             viewer.prefs.set('swapBlackAndWhite', true);
                         }
@@ -63,30 +78,55 @@
                     viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, onGeometryLoaded);
 
                     const documentId = 'urn:' + modelUrn;
+                    // 將 viewer 實例傳遞給成功回呼函式
                     Autodesk.Viewing.Document.load(documentId, 
-                        (doc) => {
-                            const viewables3d = doc.getRoot().search({ 'type': 'geometry', 'role': '3d' });
-                            if (viewables3d.length > 0) {
-                                viewer.loadDocumentNode(doc, viewables3d[0]);
-                            } else {
-                                const viewables2d = doc.getRoot().search({ 'type': 'geometry', 'role': '2d' });
-                                if (viewables2d.length > 0) {
-                                    viewer.loadDocumentNode(doc, viewables2d[0]);
-                                } else {
-                                    throw new Error("在此 URN 中找不到任何 2D 或 3D 視圖。");
-                                }
-                            }
-                            messageDiv.style.display = 'none'; // 載入成功後隱藏訊息
-                        }, 
-                        (errorCode) => { throw new Error(`載入模型失敗 - 錯誤碼: ${errorCode}`) }
+                        (doc) => onDocumentLoadSuccess(doc, viewer), 
+                        (errorCode, errorMsg) => onDocumentLoadFailure(errorCode, errorMsg, retryCount)
                     );
                 });
             } catch (error) {
-                messageDiv.textContent = `❌ 錯誤: ${error.message}`;
-                console.error(error);
+                // 捕捉 fetch token.json 或其他初始化前的錯誤
+                onDocumentLoadFailure('InitialSetup', error.message, retryCount);
             }
         }
 
+        // --- 回呼函式 ---
+        function onDocumentLoadSuccess(doc, viewer) {
+            sessionStorage.removeItem('viewerRetryCount'); // 成功載入後，清除計數器
+            const messageDiv = document.getElementById('message');
+            
+            const viewables3d = doc.getRoot().search({ 'type': 'geometry', 'role': '3d' });
+            if (viewables3d.length > 0) {
+                viewer.loadDocumentNode(doc, viewables3d[0]);
+                messageDiv.style.display = 'none';
+                return;
+            }
+            
+            const viewables2d = doc.getRoot().search({ 'type': 'geometry', 'role': '2d' });
+            if (viewables2d.length > 0) {
+                viewer.loadDocumentNode(doc, viewables2d[0]);
+                messageDiv.style.display = 'none';
+            } else {
+                throw new Error("在此 URN 中找不到任何 2D 或 3D 視圖。");
+            }
+        }
+
+        function onDocumentLoadFailure(errorCode, errorMsg, currentRetryCount) {
+            console.error(`載入失敗 (第 ${currentRetryCount + 1} 次) - 錯誤碼: ${errorCode}`, errorMsg);
+            
+            const nextRetryCount = currentRetryCount + 1;
+            sessionStorage.setItem('viewerRetryCount', nextRetryCount);
+            
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = `❌ 載入失敗，將在 ${RETRY_DELAY_SECONDS} 秒後進行第 ${nextRetryCount}/${MAX_RETRIES} 次重試...`;
+            messageDiv.style.backgroundColor = '#d9534f'; // 顯示紅色錯誤背景
+            
+            setTimeout(() => {
+                window.location.reload(); // 重新整理頁面以進行重試
+            }, RETRY_DELAY_SECONDS * 1000);
+        }
+
+        // --- 啟動主程式 ---
         main();
     </script>
 </body>
