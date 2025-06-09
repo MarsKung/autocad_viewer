@@ -1,45 +1,42 @@
-name: Generate and Deploy Viewer
+name: Generate and Deploy Viewer on Dispatch
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'
+  # vvvvvv 這是本次最關鍵的修改 vvvvvv
+  # 當收到名為 'refresh-token' 的 repository_dispatch 事件時觸發
+  repository_dispatch:
+    types: [refresh-token]
+  # ^^^^ 這是本次最關鍵的修改 ^^^^
+  
+  # 我們依然保留 workflow_dispatch，方便您在 GitHub 頁面上手動測試
   workflow_dispatch:
 
 jobs:
   build-and-deploy:
-    # ===============================================================
-    # vvvvvvvvvvvvvvvvvv 這是本次最關鍵的修改 vvvvvvvvvvvvvvvvvvv
-    # 明確地給予這個 job 寫入儲存庫內容的權限
+    # 給予寫入儲存庫的權限 (不變)
     permissions:
       contents: write
-    # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    # ===============================================================
     
     runs-on: ubuntu-latest
 
     steps:
-      # 步驟 1: 下載儲存庫的程式碼
+      # 後續的所有步驟都與之前完全相同
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 步驟 2: 設定 Python 環境
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      # 步驟 3: 安裝依賴
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
 
-      # 步驟 4: 執行 Python 腳本來產生 token.json
       - name: Generate token file
         env:
           APS_CLIENT_ID: ${{ secrets.APS_CLIENT_ID }}
           APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
         run: python generate_token.py
 
-      # 步驟 5: 將 viewer 資料夾部署到 gh-pages 分支
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
@@ -48,4 +45,4 @@ jobs:
           publish_branch: gh-pages
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
-          commit_message: "chore: Auto-refresh APS token and deploy"
+          commit_message: "chore(dispatch): Auto-refresh APS token and deploy"
